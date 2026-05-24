@@ -748,9 +748,9 @@ function spawnBoss() {
   game.bossActive = true;
   game.enemies.push({
     x: W / 2,
-    y: -80,
+    y: -30,
     vx: 1,
-    vy: 0.5,
+    vy: 2.0,
     hp: type.hp * waveMultiplier,
     maxHp: type.hp * waveMultiplier,
     score: type.score,
@@ -800,7 +800,7 @@ function update() {
       g.waveMessageTimer = 120;
       if (g.stageWave >= g.wavesPerStage) {
         g.waveMessage = `⚠ BOSS INCOMING ⚠`;
-        setTimeout(() => spawnBoss(), 2000);
+        setTimeout(() => spawnBoss(), 1200);
       } else {
         g.waveMessage = `WAVE ${g.stageWave}/${g.wavesPerStage} CLEAR!`;
         setTimeout(() => {
@@ -1148,7 +1148,7 @@ function draw() {
   // Enemies
   g.enemies.forEach(e => {
     if (e.isBoss) {
-      drawBoss(ctx, e.x, e.y, 20*scale, e);
+      drawBoss(ctx, e.x, e.y, 20*scale, e.type);
       // Boss HP bar
       const bw = 120 * scale;
       ctx.fillStyle = '#300';
