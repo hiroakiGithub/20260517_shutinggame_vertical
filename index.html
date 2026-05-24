@@ -392,6 +392,27 @@ const BOSS_TYPES = [
   { id: 'h6', name: 'H-6K', hp: 100, speed: 0.4, score: 3000, color: '#7a8a7a', size: 2.8, fireRate: 15 }
 ];
 
+const ITEMS = [
+  { id: 'spread', name: 'スプレッドショット', desc: '弾の発射数が増加', color: '#4af',
+    apply: (p) => { p.spread = Math.min(p.spread + 1, 4); } },
+  { id: 'rapid', name: 'ラピッドファイア', desc: '発射速度が大幅向上', color: '#fa4',
+    apply: (p) => { p.fireRate = Math.max(3, Math.floor(p.fireRate * 0.7)); } },
+  { id: 'armor', name: 'アーマーアップ', desc: '最大HPが2増加', color: '#4f4',
+    apply: (p) => { p.maxHp += 2; p.hp = Math.min(p.hp + 2, p.maxHp); } },
+  { id: 'missile', name: 'ミサイル補給', desc: '特殊武器が3発追加', color: '#f84',
+    apply: (p) => { p.special = Math.min(p.special + 3, 9); } },
+  { id: 'speed', name: 'スピードアップ', desc: '移動速度が25%向上', color: '#8ff',
+    apply: (p) => { p.speed *= 1.25; } },
+  { id: 'power', name: 'パワーアップ', desc: '攻撃力が30%増加', color: '#f4f',
+    apply: (p) => { p.damage *= 1.3; } },
+  { id: 'repair', name: '完全修理', desc: 'HPが全回復', color: '#4ff',
+    apply: (p) => { p.hp = p.maxHp; } },
+  { id: 'score', name: 'スコアボーナス', desc: 'スコア倍率が×0.5増加', color: '#fd0',
+    apply: (p, g) => { g.scoreMult += 0.5; } }
+];
+
+const STAGE_NAMES = ['南シナ海', '東シナ海', '台湾海峡', '日本海', '北方領土', '太平洋', '北極海', '最終決戦'];
+
 // Game state
 let game = null;
 
@@ -409,6 +430,14 @@ function createGame() {
     waveMessage: '',
     waveMessageTimer: 0,
     bossActive: false,
+    stage: 1,
+    stageWave: 1,
+    wavesPerStage: 3,
+    stageDifficulty: 1.0,
+    scoreMult: 1,
+    itemChoices: [],
+    items: [],
+    stageClearAnim: 0,
     player: {
       x: W / 2, y: H * 0.78,
       w: 36 * scale, h: 44 * scale,
@@ -529,6 +558,20 @@ function drawBoss(c, x, y, s, boss) {
   c.restore();
 }
 
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
+
 function shadeColor(color, percent) {
   const num = parseInt(color.replace('#',''), 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + percent));
@@ -585,11 +628,18 @@ function drawPlayer(g) {
 // Touch controls
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  if (!game || game.state !== 'playing') return;
+  if (!game) return;
   const t = e.touches[0];
   const rect = canvas.getBoundingClientRect();
   const tx = t.clientX - rect.left;
   const ty = t.clientY - rect.top;
+
+  if (game.state === 'stageClear') {
+    handleStageClearTap(game, tx, ty);
+    return;
+  }
+
+  if (game.state !== 'playing') return;
 
   // Special button check
   if (tx < 80*scale && ty > H - 80*scale) {
@@ -626,7 +676,14 @@ canvas.addEventListener('touchend', e => {
 // Mouse controls (for testing)
 let mouseDown = false;
 canvas.addEventListener('mousedown', e => {
-  if (!game || game.state !== 'playing') return;
+  if (!game) return;
+
+  if (game.state === 'stageClear') {
+    handleStageClearTap(game, e.offsetX, e.offsetY);
+    return;
+  }
+
+  if (game.state !== 'playing') return;
   mouseDown = true;
   game.touch.active = true;
   game.touch.startX = e.offsetX;
@@ -670,7 +727,7 @@ function fireSpecial() {
 
 function spawnEnemy() {
   const type = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
-  const waveMultiplier = 1 + (game.wave - 1) * 0.3;
+  const waveMultiplier = (1 + (game.wave - 1) * 0.3) * game.stageDifficulty;
   game.enemies.push({
     x: 40 + Math.random() * (W - 80),
     y: -40,
@@ -687,7 +744,7 @@ function spawnEnemy() {
 
 function spawnBoss() {
   const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
-  const waveMultiplier = 1 + (game.wave - 1) * 0.25;
+  const waveMultiplier = (1 + (game.wave - 1) * 0.25) * game.stageDifficulty;
   game.bossActive = true;
   game.enemies.push({
     x: W / 2,
@@ -741,19 +798,20 @@ function update() {
     if (!g.waveCleared) {
       g.waveCleared = true;
       g.waveMessageTimer = 120;
-      if (g.wave % 3 === 0) {
+      if (g.stageWave >= g.wavesPerStage) {
         g.waveMessage = `⚠ BOSS INCOMING ⚠`;
         setTimeout(() => spawnBoss(), 2000);
       } else {
-        g.waveMessage = `WAVE ${g.wave} CLEAR!`;
+        g.waveMessage = `WAVE ${g.stageWave}/${g.wavesPerStage} CLEAR!`;
         setTimeout(() => {
           g.wave++;
+          g.stageWave++;
           g.waveEnemyCount = 0;
           g.waveTotalEnemies = 8 + g.wave * 2;
           g.waveCleared = false;
           g.waveTimer = 0;
           g.waveMessageTimer = 90;
-          g.waveMessage = `WAVE ${g.wave}`;
+          g.waveMessage = `WAVE ${g.stageWave}/${g.wavesPerStage}`;
         }, 2000);
       }
     }
@@ -853,21 +911,15 @@ function update() {
         b.life = 0;
         addParticles(b.x, b.y, 3, '#ff8');
         if (e.hp <= 0) {
-          g.score += e.score;
+          g.score += Math.floor(e.score * g.scoreMult);
           g.coins += Math.floor(e.score / 10);
           addExplosion(e.x, e.y, e.isBoss ? 80 : 35);
           if (e.isBoss) {
             g.bossActive = false;
             g.wave++;
-            g.waveEnemyCount = 0;
-            g.waveTotalEnemies = 8 + g.wave * 2;
-            g.waveCleared = false;
-            g.waveTimer = 0;
-            g.waveMessageTimer = 120;
-            g.waveMessage = `WAVE ${g.wave}`;
             g.player.special = Math.min(g.player.special + 1, 5);
-            // Drop powerup
             g.powerups.push({ x: e.x, y: e.y, type: 'heal', vy: 1.5, life: 300 });
+            setTimeout(() => showStageClear(g), 800);
           }
           if (Math.random() < 0.15) {
             g.powerups.push({
@@ -982,7 +1034,7 @@ function addExplosion(x, y, size) {
 function gameOver() {
   game.state = 'over';
   document.getElementById('finalScore').textContent = `SCORE: ${game.score}`;
-  document.getElementById('finalWave').textContent = `WAVE: ${game.wave}`;
+  document.getElementById('finalWave').textContent = `STAGE: ${game.stage}  WAVE: ${game.stageWave}/${game.wavesPerStage}`;
   document.getElementById('gameOverScreen').style.display = 'flex';
 }
 
@@ -1197,6 +1249,12 @@ function draw() {
     ctx.fillRect(0, 0, W, H);
   }
 
+  // Stage clear overlay
+  if (g.state === 'stageClear') {
+    drawStageClear(g);
+    return;
+  }
+
   // HUD
   drawHUD(g);
 }
@@ -1249,11 +1307,14 @@ function drawHUD(g) {
   ctx.textAlign = 'center';
   ctx.fillText('$', W - 12*scale - ctx.measureText(`${g.coins}`).width/2 - 8, 26);
 
-  // Wave (top right below coins)
-  ctx.fillStyle = '#8af';
+  // Stage / Wave (top right)
+  ctx.fillStyle = '#ffd700';
   ctx.font = `bold ${11*scale}px Arial`;
   ctx.textAlign = 'right';
-  ctx.fillText(`WAVE ${g.wave}`, W - 15, 50);
+  ctx.fillText(`STAGE ${g.stage}`, W - 15, 48);
+  ctx.fillStyle = '#8af';
+  ctx.font = `${10*scale}px Arial`;
+  ctx.fillText(`WAVE ${g.stageWave}/${g.wavesPerStage}`, W - 15, 62);
 
   // Special weapon button (bottom left)
   const btnX = 45*scale, btnY = H - 45*scale, btnR = 30*scale;
@@ -1293,15 +1354,123 @@ function drawHUD(g) {
     ctx.save();
     const alpha = Math.min(1, g.waveMessageTimer / 30);
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = g.waveMessage.includes('BOSS') ? '#f44' : '#ffd700';
+    ctx.fillStyle = g.waveMessage.includes('BOSS') ? '#f44' : g.waveMessage.includes('STAGE') ? '#4ff' : '#ffd700';
     ctx.font = `bold ${24*scale}px Arial`;
     ctx.textAlign = 'center';
-    ctx.shadowColor = g.waveMessage.includes('BOSS') ? '#f00' : '#fa0';
+    ctx.shadowColor = g.waveMessage.includes('BOSS') ? '#f00' : g.waveMessage.includes('STAGE') ? '#0ff' : '#fa0';
     ctx.shadowBlur = 20;
     ctx.fillText(g.waveMessage, W/2, H*0.35);
     ctx.shadowBlur = 0;
     ctx.restore();
   }
+}
+
+function showStageClear(g) {
+  const shuffled = [...ITEMS].sort(() => Math.random() - 0.5);
+  g.itemChoices = shuffled.slice(0, 3);
+  g.stageClearAnim = 0;
+  g.state = 'stageClear';
+}
+
+function handleStageClearTap(g, x, y) {
+  if (!g.itemChoices || g.itemChoices.length === 0) return;
+  const boxW = W * 0.82;
+  const boxH = H * 0.13;
+  const boxX = (W - boxW) / 2;
+  for (let i = 0; i < g.itemChoices.length; i++) {
+    const boxY = H * 0.42 + i * (boxH + H * 0.022);
+    if (x >= boxX && x <= boxX + boxW && y >= boxY && y <= boxY + boxH) {
+      startNextStage(g, i);
+      return;
+    }
+  }
+}
+
+function startNextStage(g, itemIndex) {
+  const item = g.itemChoices[itemIndex];
+  if (!item) return;
+  item.apply(g.player, g);
+  g.items.push(item);
+  g.stage++;
+  g.stageWave = 1;
+  g.stageDifficulty = 1 + (g.stage - 1) * 0.35;
+  g.waveEnemyCount = 0;
+  g.waveTotalEnemies = 8 + g.wave * 2;
+  g.waveCleared = false;
+  g.waveTimer = 0;
+  g.bossActive = false;
+  g.enemies = [];
+  g.enemyBullets = [];
+  g.itemChoices = [];
+  const sName = STAGE_NAMES[Math.min(g.stage - 1, STAGE_NAMES.length - 1)];
+  g.waveMessage = `STAGE ${g.stage}: ${sName}`;
+  g.waveMessageTimer = 150;
+  g.state = 'playing';
+}
+
+function drawStageClear(g) {
+  g.stageClearAnim = Math.min(g.stageClearAnim + 2, 60);
+  const alpha = g.stageClearAnim / 60;
+
+  ctx.fillStyle = `rgba(0,0,20,${alpha * 0.88})`;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = `bold ${Math.round(22 * scale)}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#fa0';
+  ctx.shadowBlur = 20;
+  ctx.fillText(`STAGE ${g.stage} CLEAR!`, W / 2, H * 0.18);
+  ctx.shadowBlur = 0;
+
+  const nextName = STAGE_NAMES[Math.min(g.stage, STAGE_NAMES.length - 1)];
+  ctx.fillStyle = '#aac';
+  ctx.font = `${Math.round(13 * scale)}px Arial`;
+  ctx.fillText(`NEXT AREA: ${nextName}`, W / 2, H * 0.26);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.round(12 * scale)}px Arial`;
+  ctx.fillText('アイテムを1つ選んでください', W / 2, H * 0.34);
+
+  const boxW = W * 0.82;
+  const boxH = H * 0.13;
+  const boxX = (W - boxW) / 2;
+
+  g.itemChoices.forEach((item, i) => {
+    const boxY = H * 0.42 + i * (boxH + H * 0.022);
+
+    ctx.fillStyle = 'rgba(5,15,40,0.85)';
+    roundRect(ctx, boxX, boxY, boxW, boxH, 10);
+    ctx.fill();
+
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 2;
+    roundRect(ctx, boxX, boxY, boxW, boxH, 10);
+    ctx.stroke();
+
+    const iconX = boxX + boxW * 0.08;
+    const iconY = boxY + boxH * 0.5;
+    ctx.fillStyle = item.color;
+    ctx.font = `bold ${Math.round(14 * scale)}px Arial`;
+    ctx.textAlign = 'left';
+    ctx.fillText(item.name, iconX, iconY - boxH * 0.1);
+
+    ctx.fillStyle = '#bbb';
+    ctx.font = `${Math.round(11 * scale)}px Arial`;
+    ctx.fillText(item.desc, iconX, iconY + boxH * 0.28);
+  });
+
+  if (g.items.length > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${Math.round(10 * scale)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`取得済み: ${g.items.map(it => it.name).join(' / ')}`, W / 2, H * 0.95);
+  }
+
+  ctx.restore();
 }
 
 function gameLoop() {
@@ -1315,15 +1484,15 @@ document.getElementById('startBtn').addEventListener('click', () => {
   document.getElementById('startScreen').style.display = 'none';
   document.getElementById('gameOverScreen').style.display = 'none';
   game = createGame();
-  game.waveMessage = `WAVE 1`;
-  game.waveMessageTimer = 90;
+  game.waveMessage = `STAGE 1: ${STAGE_NAMES[0]}  WAVE 1/3`;
+  game.waveMessageTimer = 120;
 });
 
 document.getElementById('retryBtn').addEventListener('click', () => {
   document.getElementById('gameOverScreen').style.display = 'none';
   game = createGame();
-  game.waveMessage = `WAVE 1`;
-  game.waveMessageTimer = 90;
+  game.waveMessage = `STAGE 1: ${STAGE_NAMES[0]}  WAVE 1/3`;
+  game.waveMessageTimer = 120;
 });
 
 document.getElementById('menuBtn').addEventListener('click', () => {
