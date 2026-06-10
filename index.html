@@ -77,9 +77,47 @@ canvas {
   0%,100% { text-shadow: 0 0 18px #ffd700, 0 0 45px #ff8c00; }
   50%     { text-shadow: 0 0 35px #ffe566, 0 0 75px #ff8c00, 0 0 110px #ff3300; }
 }
-@keyframes topBrandFloat {
-  0%,100% { transform: translateY(0); }
-  50%     { transform: translateY(-7px); }
+@keyframes topBrandFlyIn {
+  0% {
+    transform: scale(0.02);
+    opacity: 0;
+    filter: blur(20px);
+    letter-spacing: -6px;
+  }
+  14% {
+    opacity: 1;
+    filter: blur(6px);
+  }
+  60% {
+    transform: scale(10);
+    filter: blur(0);
+    letter-spacing: 10px;
+    text-shadow: 0 0 100px currentColor, 0 0 200px currentColor, 0 0 300px currentColor;
+  }
+  74% {
+    transform: scale(0.82);
+    letter-spacing: 0px;
+  }
+  87% {
+    transform: scale(1.14);
+    letter-spacing: 2px;
+  }
+  100% {
+    transform: scale(1);
+    filter: blur(0);
+    letter-spacing: 1px;
+    opacity: 1;
+  }
+}
+@keyframes topBrandPulse {
+  0%,100% {
+    transform: scale(1);
+    text-shadow: 0 0 14px currentColor, 0 0 32px currentColor;
+  }
+  50% {
+    transform: scale(1.06);
+    text-shadow: 0 0 28px currentColor, 0 0 60px currentColor, 0 0 100px currentColor;
+  }
 }
 @keyframes topRainbow {
   0%   { color: #ff6b6b; }
@@ -87,23 +125,6 @@ canvas {
   50%  { color: #6bcb77; }
   75%  { color: #74b9ff; }
   100% { color: #ff6b6b; }
-}
-@keyframes topBrandPop {
-  0%,100% {
-    transform: scale(1) translateY(0);
-    text-shadow: 0 0 12px currentColor, 0 0 28px currentColor;
-    letter-spacing: 1px;
-  }
-  40% {
-    transform: scale(1.12) translateY(-6px);
-    text-shadow: 0 0 22px currentColor, 0 0 50px currentColor, 0 0 80px currentColor;
-    letter-spacing: 3px;
-  }
-  70% {
-    transform: scale(1.08) translateY(-3px);
-    text-shadow: 0 0 18px currentColor, 0 0 38px currentColor;
-    letter-spacing: 2px;
-  }
 }
 @keyframes topBtnPulse {
   0%,100% { transform: scale(1);    box-shadow: 0 0 14px #00f7ff, 0 0 32px #0055ff; }
@@ -161,7 +182,6 @@ canvas {
 .top-content {
   display: flex; flex-direction: column;
   align-items: center; gap: 10px;
-  animation: topFadeIn 0.9s ease both;
   z-index: 1; position: relative; text-align: center;
 }
 .top-badge {
@@ -170,24 +190,35 @@ canvas {
   font-weight: bold; padding: 4px 16px;
   border-radius: 20px; letter-spacing: 2px;
   box-shadow: 0 0 12px rgba(255,80,0,0.7);
+  opacity: 0;
+  animation: topFadeIn 0.7s ease 2.1s both;
 }
 .top-game-title {
   font-size: clamp(28px,8vw,50px);
   font-weight: 900; color: #ffd700;
   letter-spacing: 3px; line-height: 1.1;
-  animation: topTitleGlow 2.2s ease-in-out infinite;
+  opacity: 0;
+  animation: topFadeIn 0.7s ease 2.3s both, topTitleGlow 2.2s ease-in-out 3.0s infinite;
 }
 .top-brand {
-  font-size: clamp(22px,6.5vw,38px);
+  font-size: clamp(30px,9vw,56px);
   font-weight: 900; letter-spacing: 1px;
-  animation: topRainbow 2.5s linear infinite, topBrandPop 2s ease-in-out infinite;
+  animation: topRainbow 2.5s linear infinite,
+             topBrandFlyIn 1.9s cubic-bezier(0.16,1,0.3,1) 0.3s 1 both,
+             topBrandPulse 2.8s ease-in-out 2.6s infinite;
 }
 .top-decorbar {
   width: 55%; height: 2px;
   background: linear-gradient(90deg, transparent, #00f7ff, #ff00ff, transparent);
   border-radius: 2px;
+  opacity: 0;
+  animation: topFadeIn 0.6s ease 2.6s both;
 }
-.top-tagline { font-size: clamp(11px,3vw,14px); color: #88ccff; letter-spacing: 1px; }
+.top-tagline {
+  font-size: clamp(11px,3vw,14px); color: #88ccff; letter-spacing: 1px;
+  opacity: 0;
+  animation: topFadeIn 0.6s ease 2.8s both;
+}
 .top-start-btn {
   margin-top: 6px;
   padding: 16px 52px;
@@ -197,7 +228,8 @@ canvas {
   background: linear-gradient(135deg, rgba(0,70,200,0.35), rgba(0,200,200,0.22));
   color: #00f7ff; border-radius: 50px; cursor: pointer;
   letter-spacing: 2px;
-  animation: topBtnPulse 1.6s ease-in-out infinite;
+  opacity: 0;
+  animation: topFadeIn 0.7s ease 3.0s both, topBtnPulse 1.6s ease-in-out 3.7s infinite;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
