@@ -88,6 +88,23 @@ canvas {
   75%  { color: #74b9ff; }
   100% { color: #ff6b6b; }
 }
+@keyframes topBrandPop {
+  0%,100% {
+    transform: scale(1) translateY(0);
+    text-shadow: 0 0 12px currentColor, 0 0 28px currentColor;
+    letter-spacing: 1px;
+  }
+  40% {
+    transform: scale(1.12) translateY(-6px);
+    text-shadow: 0 0 22px currentColor, 0 0 50px currentColor, 0 0 80px currentColor;
+    letter-spacing: 3px;
+  }
+  70% {
+    transform: scale(1.08) translateY(-3px);
+    text-shadow: 0 0 18px currentColor, 0 0 38px currentColor;
+    letter-spacing: 2px;
+  }
+}
 @keyframes topBtnPulse {
   0%,100% { transform: scale(1);    box-shadow: 0 0 14px #00f7ff, 0 0 32px #0055ff; }
   50%     { transform: scale(1.06); box-shadow: 0 0 26px #00f7ff, 0 0 55px #0055ff, 0 0 80px #00ffcc; }
@@ -161,9 +178,9 @@ canvas {
   animation: topTitleGlow 2.2s ease-in-out infinite;
 }
 .top-brand {
-  font-size: clamp(13px,3.8vw,19px);
-  font-weight: bold; letter-spacing: 0.5px;
-  animation: topRainbow 3s linear infinite, topBrandFloat 2.8s ease-in-out infinite;
+  font-size: clamp(22px,6.5vw,38px);
+  font-weight: 900; letter-spacing: 1px;
+  animation: topRainbow 2.5s linear infinite, topBrandPop 2s ease-in-out infinite;
 }
 .top-decorbar {
   width: 55%; height: 2px;
