@@ -67,13 +67,151 @@ canvas {
 #gameOverScreen h2 { font-size: 28px; color: #f44; margin-bottom: 10px; }
 #gameOverScreen .score { font-size: 22px; color: #ffd700; margin-bottom: 20px; }
 #gameOverScreen .wave { font-size: 16px; color: #aaa; margin-bottom: 20px; }
+
+/* ====== TOP SCREEN ====== */
+@keyframes topBgShift {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+@keyframes topTitleGlow {
+  0%,100% { text-shadow: 0 0 18px #ffd700, 0 0 45px #ff8c00; }
+  50%     { text-shadow: 0 0 35px #ffe566, 0 0 75px #ff8c00, 0 0 110px #ff3300; }
+}
+@keyframes topBrandFloat {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-7px); }
+}
+@keyframes topRainbow {
+  0%   { color: #ff6b6b; }
+  25%  { color: #ffd93d; }
+  50%  { color: #6bcb77; }
+  75%  { color: #74b9ff; }
+  100% { color: #ff6b6b; }
+}
+@keyframes topBtnPulse {
+  0%,100% { transform: scale(1);    box-shadow: 0 0 14px #00f7ff, 0 0 32px #0055ff; }
+  50%     { transform: scale(1.06); box-shadow: 0 0 26px #00f7ff, 0 0 55px #0055ff, 0 0 80px #00ffcc; }
+}
+@keyframes topPlaneFly {
+  from { transform: translateX(-160px); }
+  to   { transform: translateX(calc(100vw + 160px)); }
+}
+@keyframes topStarBlink {
+  0%,100% { opacity: 0.12; }
+  50%     { opacity: 0.95; }
+}
+@keyframes topFadeIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes topExplode {
+  0%   { transform: scale(0); opacity: 1; }
+  60%  { transform: scale(1.6); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+#topScreen {
+  position: fixed; top: 0; left: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  z-index: 20; overflow: hidden;
+  background: linear-gradient(135deg, #06061e 0%, #0d1545 25%, #1a0840 55%, #0c2060 80%, #06061e 100%);
+  background-size: 400% 400%;
+  animation: topBgShift 9s ease infinite;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  padding: env(safe-area-inset-top,12px) env(safe-area-inset-right,12px) env(safe-area-inset-bottom,12px) env(safe-area-inset-left,12px);
+}
+.top-stars-layer { position: absolute; inset: 0; pointer-events: none; }
+.top-star {
+  position: absolute; border-radius: 50%; background: #fff;
+  animation: topStarBlink var(--td,2s) ease-in-out infinite var(--tdelay,0s);
+}
+.top-plane {
+  position: absolute;
+  width: 52px; height: 20px;
+  background: linear-gradient(90deg, rgba(80,190,255,0.88), rgba(0,90,210,0.35));
+  clip-path: polygon(100% 50%, 68% 3%, 44% 38%, 6% 44%, 0% 50%, 6% 56%, 44% 62%, 68% 97%);
+  filter: drop-shadow(0 0 6px rgba(0,210,255,0.9));
+  pointer-events: none;
+}
+.top-plane-1 { top: 15%; animation: topPlaneFly 5.5s linear infinite; }
+.top-plane-2 { top: 54%; width:36px; height:14px; animation: topPlaneFly 8s linear infinite 2.8s; opacity: 0.7; }
+.top-plane-3 { top: 38%; width:26px; height:10px; animation: topPlaneFly 11s linear infinite 5.5s; opacity: 0.5; }
+.top-burst {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,200,50,0.9), rgba(255,80,0,0.6), transparent);
+  animation: topExplode var(--ed,2s) ease-out infinite var(--edelay,0s);
+}
+.top-content {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 10px;
+  animation: topFadeIn 0.9s ease both;
+  z-index: 1; position: relative; text-align: center;
+}
+.top-badge {
+  background: linear-gradient(135deg, #ff5500, #ff0066);
+  color: #fff; font-size: clamp(9px,2.8vw,12px);
+  font-weight: bold; padding: 4px 16px;
+  border-radius: 20px; letter-spacing: 2px;
+  box-shadow: 0 0 12px rgba(255,80,0,0.7);
+}
+.top-game-title {
+  font-size: clamp(28px,8vw,50px);
+  font-weight: 900; color: #ffd700;
+  letter-spacing: 3px; line-height: 1.1;
+  animation: topTitleGlow 2.2s ease-in-out infinite;
+}
+.top-brand {
+  font-size: clamp(13px,3.8vw,19px);
+  font-weight: bold; letter-spacing: 0.5px;
+  animation: topRainbow 3s linear infinite, topBrandFloat 2.8s ease-in-out infinite;
+}
+.top-decorbar {
+  width: 55%; height: 2px;
+  background: linear-gradient(90deg, transparent, #00f7ff, #ff00ff, transparent);
+  border-radius: 2px;
+}
+.top-tagline { font-size: clamp(11px,3vw,14px); color: #88ccff; letter-spacing: 1px; }
+.top-start-btn {
+  margin-top: 6px;
+  padding: 16px 52px;
+  font-size: clamp(18px,5vw,24px);
+  font-weight: bold;
+  border: 2.5px solid #00f7ff;
+  background: linear-gradient(135deg, rgba(0,70,200,0.35), rgba(0,200,200,0.22));
+  color: #00f7ff; border-radius: 50px; cursor: pointer;
+  letter-spacing: 2px;
+  animation: topBtnPulse 1.6s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.top-start-btn:active { background: rgba(0,200,255,0.5); transform: scale(0.96); }
+.top-version {
+  position: absolute; bottom: max(14px, env(safe-area-inset-bottom,14px));
+  color: rgba(255,255,255,0.22); font-size: 11px;
+}
 </style>
 </head>
 <body>
 
 <canvas id="gameCanvas"></canvas>
 
-<div id="startScreen">
+<div id="topScreen">
+  <div class="top-stars-layer" id="topStarsLayer"></div>
+  <div class="top-plane top-plane-1"></div>
+  <div class="top-plane top-plane-2"></div>
+  <div class="top-plane top-plane-3"></div>
+  <div class="top-content">
+    <div class="top-badge">✦ TeradaPaPa Studio ✦</div>
+    <div class="top-game-title">AIR FORCE<br>STRIKE</div>
+    <div class="top-brand">TeradaPaPa Original Game!!</div>
+    <div class="top-decorbar"></div>
+    <div class="top-tagline">🎮 日本の空を守れ！Fight for the Sky!</div>
+    <button class="top-start-btn" id="topStartBtn">Let's&nbsp;Start!&nbsp;▶</button>
+  </div>
+  <div class="top-version">© 2026 TeradaPaPa</div>
+</div>
+
+<div id="startScreen" style="display:none;">
   <h1>AIR FORCE STRIKE</h1>
   <div class="subtitle">— SELECT YOUR FIGHTER —</div>
   <div class="aircraft-select" id="aircraftSelect"></div>
@@ -102,7 +240,7 @@ function resize() {
   canvas.height = H;
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
-  ['startScreen', 'gameOverScreen'].forEach(id => {
+  ['topScreen', 'startScreen', 'gameOverScreen'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.width = W + 'px'; el.style.height = H + 'px'; }
   });
@@ -1939,6 +2077,34 @@ document.getElementById('menuBtn').addEventListener('click', () => {
   document.getElementById('startScreen').style.display = 'flex';
   game = null;
 });
+
+// ===== TOP SCREEN =====
+document.getElementById('topStartBtn').addEventListener('click', () => {
+  document.getElementById('topScreen').style.display = 'none';
+  document.getElementById('startScreen').style.display = 'flex';
+});
+
+// Create top screen stars dynamically
+(function() {
+  const layer = document.getElementById('topStarsLayer');
+  if (!layer) return;
+  for (let i = 0; i < 75; i++) {
+    const s = document.createElement('div');
+    s.className = 'top-star';
+    const sz = 1 + Math.random() * 2.4;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${(Math.random()*100).toFixed(1)}%;top:${(Math.random()*100).toFixed(1)}%;--td:${(1.4+Math.random()*2.6).toFixed(2)}s;--tdelay:${(Math.random()*3.5).toFixed(2)}s`;
+    layer.appendChild(s);
+  }
+  // Random small explosion bursts in background
+  const positions = [[20,30],[75,20],[60,65],[15,70],[85,50],[40,80],[90,35]];
+  positions.forEach(([lx, ly], i) => {
+    const b = document.createElement('div');
+    b.className = 'top-burst';
+    const sz = 20 + Math.random() * 25;
+    b.style.cssText = `width:${sz}px;height:${sz}px;left:${lx}%;top:${ly}%;--ed:${(2+Math.random()*2).toFixed(2)}s;--edelay:${(i*0.7).toFixed(2)}s`;
+    layer.appendChild(b);
+  });
+})();
 
 // Draw title screen background
 function drawTitleBg() {
