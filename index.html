@@ -472,7 +472,11 @@ function createGame() {
     bgScroll: 0,
     structures: generateStructures(),
     touch: { active: false, x: 0, y: 0, startX: 0, startY: 0, playerStartX: 0, playerStartY: 0 },
-    frameCount: 0
+    frameCount: 0,
+    screenShake: 0, shakeX: 0, shakeY: 0,
+    slowMo: 0,
+    combo: 0, comboTimer: 0, comboMsg: '', comboMsgTimer: 0,
+    supplyTimer: 600
   };
 }
 
@@ -528,11 +532,12 @@ function drawEnemyFighter(c, x, y, s, enemy) {
   c.restore();
 }
 
-function drawBoss(c, x, y, s, boss) {
+function drawBoss(c, x, y, s, boss, phase2) {
   c.save(); c.translate(x, y); c.rotate(Math.PI);
   const sc = s * boss.size;
+  if (phase2) { c.shadowColor = '#f44'; c.shadowBlur = 18; }
   // Big bomber body
-  c.fillStyle = boss.color;
+  c.fillStyle = phase2 ? '#c44' : boss.color;
   c.beginPath();
   c.moveTo(0, -sc);
   c.lineTo(sc*0.15, -sc*0.5);
@@ -557,6 +562,43 @@ function drawBoss(c, x, y, s, boss) {
   c.fillStyle = '#c33';
   c.beginPath();
   c.ellipse(0, -sc*0.5, sc*0.06, sc*0.18, 0, 0, Math.PI*2);
+  c.fill();
+  c.restore();
+}
+
+function drawSupplyPlane(c, x, y, s, vx) {
+  c.save(); c.translate(x, y);
+  if (vx < 0) c.scale(-1, 1);
+  c.fillStyle = '#7a9a6a';
+  // Fuselage
+  c.beginPath();
+  c.ellipse(0, 0, s*1.3, s*0.28, 0, 0, Math.PI*2);
+  c.fill();
+  // Main wing
+  c.fillStyle = '#6a8a5a';
+  c.beginPath();
+  c.moveTo(-s*0.1, s*0.05);
+  c.lineTo(-s*0.5, -s*0.85);
+  c.lineTo(s*0.55, -s*0.05);
+  c.lineTo(s*0.45, s*0.15);
+  c.closePath();
+  c.fill();
+  // Tail fin
+  c.fillStyle = '#5a7a4a';
+  c.beginPath();
+  c.moveTo(-s*0.85, 0);
+  c.lineTo(-s*1.1, -s*0.42);
+  c.lineTo(-s*0.65, -s*0.08);
+  c.closePath();
+  c.fill();
+  // Engines
+  c.fillStyle = '#4a6a3a';
+  c.beginPath(); c.ellipse(-s*0.15, s*0.08, s*0.14, s*0.08, 0, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(s*0.3, s*0.08, s*0.14, s*0.08, 0, 0, Math.PI*2); c.fill();
+  // Cockpit
+  c.fillStyle = '#bde';
+  c.beginPath();
+  c.ellipse(s*0.7, -s*0.06, s*0.1, s*0.07, 0.2, 0, Math.PI*2);
   c.fill();
   c.restore();
 }
@@ -843,6 +885,9 @@ function spawnBoss() {
   const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
   const waveMultiplier = (1 + (game.wave - 1) * 0.25) * game.stageDifficulty;
   game.bossActive = true;
+  game.slowMo = 80;
+  game.waveMessage = '⚠ WARNING ⚠';
+  game.waveMessageTimer = 100;
   game.enemies.push({
     x: W / 2,
     y: -30,
@@ -853,10 +898,30 @@ function spawnBoss() {
     score: type.score,
     type: type,
     isBoss: true,
+    phase2: false,
     fireCooldown: 0,
     phase: 0,
     phaseTimer: 0
   });
+}
+
+function spawnSupplyPlane() {
+  if (!game) return;
+  const fromLeft = Math.random() < 0.5;
+  game.enemies.push({
+    x: fromLeft ? -80 : W + 80,
+    y: 90 + Math.random() * (H * 0.35),
+    vx: fromLeft ? 2.8 : -2.8,
+    vy: 0,
+    hp: 10, maxHp: 10,
+    score: 800,
+    isSupply: true,
+    type: { name: '補給機', fireRate: 9999, size: 1.5, color: '#7a9a7a' },
+    fireCooldown: 9999,
+    pattern: 0
+  });
+  game.waveMessage = '✈ 補給機接近中！撃墜で報酬！';
+  game.waveMessageTimer = 150;
 }
 
 function update() {
@@ -881,6 +946,18 @@ function update() {
   if (g.player.specialCooldown > 0) g.player.specialCooldown--;
   if (g.screenFlash > 0) g.screenFlash--;
 
+  // Screen shake decay
+  if (g.screenShake > 0) {
+    g.shakeX = (Math.random() - 0.5) * g.screenShake * 3;
+    g.shakeY = (Math.random() - 0.5) * g.screenShake * 3;
+    g.screenShake *= 0.82;
+    if (g.screenShake < 0.5) { g.screenShake = 0; g.shakeX = 0; g.shakeY = 0; }
+  } else { g.shakeX = 0; g.shakeY = 0; }
+
+  // Combo timer
+  if (g.comboTimer > 0) { g.comboTimer--; if (g.comboTimer === 0) g.combo = 0; }
+  if (g.comboMsgTimer > 0) g.comboMsgTimer--;
+
   // Wave management
   g.waveTimer++;
   if (!g.bossActive && g.waveEnemyCount < g.waveTotalEnemies) {
@@ -891,7 +968,16 @@ function update() {
     }
   }
 
-  if (!g.bossActive && g.waveEnemyCount >= g.waveTotalEnemies && g.enemies.length === 0) {
+  // Supply plane timer
+  if (!g.bossActive) {
+    g.supplyTimer--;
+    if (g.supplyTimer <= 0) {
+      g.supplyTimer = 720 + Math.floor(Math.random() * 480);
+      if (g.wave >= 1 && Math.random() < 0.75) spawnSupplyPlane();
+    }
+  }
+
+  if (!g.bossActive && g.waveEnemyCount >= g.waveTotalEnemies && g.enemies.filter(e => !e.isSupply).length === 0) {
     if (!g.waveCleared) {
       g.waveCleared = true;
       g.waveMessageTimer = 120;
@@ -939,9 +1025,18 @@ function update() {
   g.enemies.forEach(e => {
     if (e.isBoss) {
       e.phaseTimer++;
+      // Phase 2 trigger at 50% HP
+      if (!e.phase2 && e.hp <= e.maxHp * 0.5) {
+        e.phase2 = true;
+        g.waveMessage = '🔥 ENRAGED! 🔥';
+        g.waveMessageTimer = 100;
+        addShake(14);
+      }
       if (e.y < 80) { e.y += e.vy; }
       else {
-        e.x += Math.sin(e.phaseTimer * 0.02) * 2;
+        const oscSpeed = e.phase2 ? 0.045 : 0.02;
+        const oscAmp  = e.phase2 ? 3.5 : 2;
+        e.x += Math.sin(e.phaseTimer * oscSpeed) * oscAmp;
         if (e.phaseTimer % e.type.fireRate === 0) {
           // Boss fire patterns
           const phase = Math.floor(e.phaseTimer / 200) % 3;
@@ -974,6 +1069,8 @@ function update() {
           }
         }
       }
+    } else if (e.isSupply) {
+      e.x += e.vx;
     } else {
       e.x += e.vx;
       e.y += e.vy;
@@ -994,6 +1091,7 @@ function update() {
   });
 
   g.enemies = g.enemies.filter(e => {
+    if (e.isSupply) return e.x > -140 && e.x < W + 140;
     if (!e.isBoss && e.y > H + 60) return false;
     return true;
   });
@@ -1008,22 +1106,27 @@ function update() {
         b.life = 0;
         addParticles(b.x, b.y, 3, '#ff8');
         if (e.hp <= 0) {
-          g.score += Math.floor(e.score * g.scoreMult);
+          g.combo++;
+          g.comboTimer = 120;
+          const cMult = g.combo >= 6 ? 3 : g.combo >= 4 ? 2 : g.combo >= 2 ? 1.5 : 1;
+          if (g.combo >= 2) { g.comboMsg = `${g.combo} COMBO! ×${cMult.toFixed(1)}`; g.comboMsgTimer = 90; }
+          g.score += Math.floor(e.score * g.scoreMult * cMult);
           g.coins += Math.floor(e.score / 10);
-          addExplosion(e.x, e.y, e.isBoss ? 80 : 35);
-          if (e.isBoss) {
+          addExplosion(e.x, e.y, e.isBoss ? 80 : e.isSupply ? 55 : 35);
+          if (e.isSupply) {
+            for (let i = 0; i < 4; i++) {
+              g.powerups.push({ x: e.x + (Math.random()-0.5)*60, y: e.y, type: i < 2 ? 'heal' : 'coin', vy: 1.5, life: 400 });
+            }
+            g.player.special = Math.min(g.player.special + 1, 9);
+          } else if (e.isBoss) {
             g.bossActive = false;
             g.wave++;
             g.player.special = Math.min(g.player.special + 1, 5);
             g.powerups.push({ x: e.x, y: e.y, type: 'heal', vy: 1.5, life: 300 });
             setTimeout(() => showStageClear(g), 800);
           }
-          if (Math.random() < 0.15) {
-            g.powerups.push({
-              x: e.x, y: e.y,
-              type: Math.random() < 0.5 ? 'heal' : 'coin',
-              vy: 1.5, life: 300
-            });
+          if (!e.isSupply && Math.random() < 0.15) {
+            g.powerups.push({ x: e.x, y: e.y, type: Math.random() < 0.5 ? 'heal' : 'coin', vy: 1.5, life: 300 });
           }
           e.hp = -999;
         }
@@ -1040,6 +1143,7 @@ function update() {
         b.life = 0;
         g.player.hp--;
         g.player.invincible = 60;
+        addShake(8);
         addParticles(g.player.x, g.player.y, 8, '#f44');
         if (g.player.hp <= 0) {
           addExplosion(g.player.x, g.player.y, 50);
@@ -1159,17 +1263,26 @@ function update() {
         b.life = 0;
         addParticles(b.x, b.y, 3, '#4cf');
         if (e.hp <= 0) {
-          g.score += Math.floor(e.score * g.scoreMult);
+          g.combo++;
+          g.comboTimer = 120;
+          const cMult2 = g.combo >= 6 ? 3 : g.combo >= 4 ? 2 : g.combo >= 2 ? 1.5 : 1;
+          if (g.combo >= 2) { g.comboMsg = `${g.combo} COMBO! ×${cMult2.toFixed(1)}`; g.comboMsgTimer = 90; }
+          g.score += Math.floor(e.score * g.scoreMult * cMult2);
           g.coins += Math.floor(e.score / 10);
-          addExplosion(e.x, e.y, e.isBoss ? 80 : 35);
-          if (e.isBoss) {
+          addExplosion(e.x, e.y, e.isBoss ? 80 : e.isSupply ? 55 : 35);
+          if (e.isSupply) {
+            for (let i = 0; i < 4; i++) {
+              g.powerups.push({ x: e.x + (Math.random()-0.5)*60, y: e.y, type: i < 2 ? 'heal' : 'coin', vy: 1.5, life: 400 });
+            }
+            g.player.special = Math.min(g.player.special + 1, 9);
+          } else if (e.isBoss) {
             g.bossActive = false;
             g.wave++;
             g.player.special = Math.min(g.player.special + 1, 5);
             g.powerups.push({ x: e.x, y: e.y, type: 'heal', vy: 1.5, life: 300 });
             setTimeout(() => showStageClear(g), 800);
           }
-          if (Math.random() < 0.15) {
+          if (!e.isSupply && Math.random() < 0.15) {
             g.powerups.push({ x: e.x, y: e.y, type: Math.random() < 0.5 ? 'heal' : 'coin', vy: 1.5, life: 300 });
           }
           e.hp = -999;
@@ -1209,6 +1322,10 @@ function update() {
   });
 }
 
+function addShake(amount) {
+  if (game) game.screenShake = Math.max(game.screenShake || 0, amount);
+}
+
 function addParticles(x, y, count, color) {
   for (let i = 0; i < count; i++) {
     game.particles.push({
@@ -1225,6 +1342,7 @@ function addExplosion(x, y, size) {
   game.explosions.push({ x, y, radius: 5, maxRadius: size, life: 20 });
   addParticles(x, y, 20, '#fa0');
   addParticles(x, y, 10, '#f44');
+  addShake(size > 60 ? 12 : 5);
 }
 
 function gameOver() {
@@ -1237,6 +1355,9 @@ function gameOver() {
 function draw() {
   const g = game;
   if (!g) return;
+
+  ctx.save();
+  ctx.translate(g.shakeX || 0, g.shakeY || 0);
 
   // Ocean background
   const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -1344,7 +1465,7 @@ function draw() {
   // Enemies
   g.enemies.forEach(e => {
     if (e.isBoss) {
-      drawBoss(ctx, e.x, e.y, 20*scale, e.type);
+      drawBoss(ctx, e.x, e.y, 20*scale, e.type, e.phase2);
       // Boss HP bar
       const bw = 120 * scale;
       ctx.fillStyle = '#300';
@@ -1358,6 +1479,20 @@ function draw() {
       ctx.font = `bold ${10*scale}px Arial`;
       ctx.textAlign = 'center';
       ctx.fillText(e.type.name, e.x, e.y - 55*scale);
+    } else if (e.isSupply) {
+      drawSupplyPlane(ctx, e.x, e.y, 22*scale, e.vx);
+      const bw = 40*scale;
+      ctx.fillStyle = '#030';
+      ctx.fillRect(e.x - bw/2, e.y - 22*scale, bw, 5*scale);
+      ctx.fillStyle = '#4c4';
+      ctx.fillRect(e.x - bw/2, e.y - 22*scale, bw*(e.hp/e.maxHp), 5*scale);
+      ctx.strokeStyle = '#6e6';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(e.x - bw/2, e.y - 22*scale, bw, 5*scale);
+      ctx.fillStyle = '#afa';
+      ctx.font = `bold ${9*scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('補給機', e.x, e.y - 27*scale);
     } else {
       drawEnemyFighter(ctx, e.x, e.y, 18*scale, e.type);
       // HP bar
@@ -1467,6 +1602,40 @@ function draw() {
   if (g.screenFlash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${g.screenFlash/20})`;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  ctx.restore(); // end screen shake translate
+
+  // Low HP vignette (B)
+  if (g.player.hp <= 1 && g.state === 'playing') {
+    const pulse = 0.22 + 0.18 * Math.sin(g.frameCount * 0.12);
+    const vig = ctx.createRadialGradient(W/2, H/2, H*0.22, W/2, H/2, Math.max(W,H)*0.78);
+    vig.addColorStop(0, 'rgba(180,0,0,0)');
+    vig.addColorStop(1, `rgba(200,0,0,${pulse})`);
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+    if (Math.floor(g.frameCount / 18) % 2 === 0) {
+      ctx.fillStyle = '#f55';
+      ctx.font = `bold ${Math.round(12*scale)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#f00'; ctx.shadowBlur = 10;
+      ctx.fillText('⚠ CRITICAL ⚠', W/2, 85);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // Combo message (F)
+  if (g.comboMsgTimer > 0) {
+    ctx.save();
+    const ca = Math.min(1, g.comboMsgTimer / 20);
+    ctx.globalAlpha = ca;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `bold ${Math.round(20*scale)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 14;
+    ctx.fillText(g.comboMsg, W/2, H * 0.47);
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   // Stage clear overlay
@@ -1733,7 +1902,17 @@ function drawStageClear(g) {
   ctx.restore();
 }
 
+let _loopTick = 0;
 function gameLoop() {
+  _loopTick++;
+  if (game && game.slowMo > 0) {
+    game.slowMo--;
+    if (_loopTick % 3 !== 0) {
+      draw();
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+  }
   update();
   draw();
   requestAnimationFrame(gameLoop);
