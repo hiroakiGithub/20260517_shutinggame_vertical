@@ -1053,7 +1053,7 @@ function fireSupport() {
 
 function spawnEnemy() {
   const type = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
-  const waveMultiplier = (1 + (game.wave - 1) * 0.3) * game.stageDifficulty;
+  const waveMultiplier = (1 + (game.wave - 1) * 0.15) * game.stageDifficulty;
   game.enemies.push({
     x: 40 + Math.random() * (W - 80),
     y: -40,
@@ -1070,7 +1070,7 @@ function spawnEnemy() {
 
 function spawnBoss() {
   const type = BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)];
-  const waveMultiplier = (1 + (game.wave - 1) * 0.25) * game.stageDifficulty;
+  const waveMultiplier = (1 + (game.wave - 1) * 0.12) * game.stageDifficulty;
   game.bossActive = true;
   game.slowMo = 80;
   game.waveMessage = '⚠ WARNING ⚠';
@@ -2006,7 +2006,7 @@ function startNextStage(g, itemIndex) {
   g.items.push(item);
   g.stage++;
   g.stageWave = 1;
-  g.stageDifficulty = 1 + (g.stage - 1) * 0.35;
+  g.stageDifficulty = 1 + (g.stage - 1) * 0.2;
   g.waveEnemyCount = 0;
   g.waveTotalEnemies = 8 + g.wave * 2;
   g.waveCleared = false;
